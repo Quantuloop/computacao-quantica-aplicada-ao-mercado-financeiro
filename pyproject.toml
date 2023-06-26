@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "computacao-quantica-aplicada-ao-mercado-financeiro"
+version = "0.1.0"
+description = ""
+authors = ["Evandro Chagas Ribeiro da Rosa <evandro@quantuloop.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+pyqubo = "^1.4.0"
+myqlm = "^1.7.3"
+qiskit = "^0.43.1"
+ket-lang = "^0.6.1"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.23.3"
+autopep8 = "^2.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

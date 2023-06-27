@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Evandro Chagas Ribeiro da Rosa <evandro@quantuloop.com>"]
 readme = "README.md"
+packages = [{include = "qaoa", from = "src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.11"

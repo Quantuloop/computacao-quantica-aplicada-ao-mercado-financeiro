@@ -1,6 +1,9 @@
 import json
+from os import path
 import shutil
-from ket import quant, dump, cnot, H, RY, RZ
+import uuid
+from ket import quant, dump, cnot, H, RY, RZ, kbw
+from os import makedirs
 
 
 def var_circuit(gamma, beta, num_layers, num_qubits, coefs):
@@ -47,84 +50,62 @@ def energy(x, cov, mu, q, B, lamb, num_qubits):
     return H
 
 
-def cost_function(param, var_circuit, energy):
-    qubits = var_circuit(param[:int((len(param)/2))],
-                         param[(int(len(param)/2)):-1])
+class CostFunction:
 
-    result = dump(qubits)
-    exp_value = 0.0
+    def __init__(self, var_circuit, energy, num_shots):
+        self.var_circuit = var_circuit
+        self.energy = energy
+        self.num_shots = num_shots
+        self.id = uuid.uuid4().hex
 
-    for states, probs in zip(result.states, result.probabilities):
-        exp_value += energy(states)*probs
+        self.executions = []
 
-    return exp_value
+    def __call__(self, param):
+        kbw.set_dump_type('shots', self.num_shots)
+        qubits = self.var_circuit(param[:len(param)//2],
+                                  param[len(param)//2:])
 
+        result = dump(qubits).shots
+        total = sum(result.values())
 
-def save_quantum_state_and_return(result: quant, num_layers, data_file):
-    result = dump(result)
-    num_layers = str(num_layers)
+        exp_value = 0.0
+        for state, count in result.items():
+            exp_value += self.energy(state)*(count/total)
 
-    try:
-        with open(data_file, 'r') as file:
-            data = json.load(file)
-    except FileNotFoundError:
-        data = {}
-    except json.JSONDecodeError:
-        shutil.copy(data_file, data_file + '.bak')
-        data = {}
+        self.executions.append(result)
 
-    result = {
-        str(state): prob for state, prob in zip(result.states, result.probabilities)
-    }
+        return exp_value
 
-    if num_layers not in data:
-        data[num_layers] = [result]
-    else:
-        data[num_layers].append(result)
+    def get_best_execution(self, state):
+        best_execution = self.executions[0]
+        for execution in self.executions:
+            if execution[state] > best_execution[state]:
+                best_execution = execution
+        return best_execution
 
-    with open(data_file, 'w') as file:
-        json.dump(data, file)
+    def get_last_execution(self):
+        return self.executions[-1]
 
-    return result
+    def save_executions(self, data_file):
+        makedirs(path.dirname(data_file), exist_ok=True)
 
+        try:
+            with open(data_file, 'r') as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            data = {}
+        except json.JSONDecodeError:
+            try_i = 1
+            while True:
+                bak_file = f'{data_file}.bak.{try_i}'
+                if path.exists(bak_file):
+                    try_i += 1
+                else:
+                    shutil.copy(data_file, bak_file)
+                    break
+            data = {}
 
-def load_probMed_Hmin(state, energy, data_file, n_best=2):
-    with open(data_file, 'r') as file:
-        data = json.load(file)
+        data[self.id] = self.executions
 
-    prob_med = {}
-    Hmin_med = {}
-    best_result = float('-inf')
-    best_state = None
-
-    for num_layers in data:
-        prob_med[int(num_layers)] = []
-        Hmin_med[int(num_layers)] = []
-        for quantum_state in data[num_layers]:
-
-            exp_value = 0.0
-            for state_in, prob in quantum_state.items():
-                exp_value += energy(int(state_in))*prob
-
-                if state_in == str(state):
-                    if prob > best_result:
-                        best_result = prob
-                        best_state = quantum_state
-                    prob_med[int(num_layers)].append(prob)
-
-            Hmin_med[int(num_layers)].append(exp_value)
-
-    for layer in prob_med:
-        selected = sorted(prob_med[layer])[-n_best:]
-        prob_med[layer] = sum(selected)/len(selected)
-
-    for layer in Hmin_med:
-        selected = sorted(Hmin_med[layer])[:n_best]
-        Hmin_med[layer] = sum(selected)/len(selected)
-
-    return prob_med, Hmin_med, best_state
-
-
-def num_quantum_executions():
-    from ket.base import PROCESS_COUNT
-    return PROCESS_COUNT-1
+        with open(data_file, 'w') as file:
+            json.dump(data, file)

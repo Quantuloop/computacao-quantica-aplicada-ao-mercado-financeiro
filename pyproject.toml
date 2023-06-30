@@ -12,6 +12,8 @@ pyqubo = "^1.4.0"
 myqlm = "^1.7.3"
 qiskit = "^0.43.1"
 ket-lang = "^0.6.1"
+pandas = "^2.0.2"
+openpyxl = "^3.1.2"
 
 
 [tool.poetry.group.dev.dependencies]
